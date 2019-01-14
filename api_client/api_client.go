@@ -17,6 +17,8 @@ const (
 	urlBestPrices = "http://min-prices.aviasales.ru/calendar_preload"
 
 	urlCurrencyRateRubEur = "http://free.currencyconverterapi.com/api/v5/convert?q=RUB_EUR&compact=y"
+
+	timeFormat = "YYYY-MM-dd"
 )
 
 type IATAPoint struct {
@@ -85,7 +87,7 @@ func GetBestPrices(src, dst *IATAPoint) ([]PriceOption, error) {
 	parameters := url.Values{}
 	parameters.Add("origin", src.IATA)
 	parameters.Add("destination", dst.IATA)
-	parameters.Add("depart_date", jodaTime.Format("YYYY-MM-dd", time.Now()))
+	parameters.Add("depart_date", jodaTime.Format(timeFormat, time.Now()))
 	parameters.Add("one_way", "false")
 	bpUrl.RawQuery = parameters.Encode()
 
@@ -126,4 +128,13 @@ func doReq(url string) ([]byte, error) {
 
 	data, err := ioutil.ReadAll(res.Body)
 	return data, err
+}
+
+func GetWeekdayFromDate(timeValue string) (time.Weekday, error) {
+	t, err := jodaTime.Parse(timeFormat, timeValue)
+	if err != nil {
+		return 0, err
+	}
+
+	return t.Weekday(), nil
 }

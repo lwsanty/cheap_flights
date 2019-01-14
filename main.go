@@ -89,16 +89,28 @@ func optionsMessage(options []api_client.PriceOption) string {
 		if err == nil && rate != 0 {
 			price = fmt.Sprintf("💶 %.2f €", rate*opt.Price)
 		} else {
-			log.Println("failed to get currency rate")
+			log.Println("failed to get currency rate:", err)
+		}
+
+		depText := opt.DepartDate
+		depDay, err := api_client.GetWeekdayFromDate(opt.DepartDate)
+		if err == nil {
+			depText = opt.DepartDate + " " + strings.ToLower(depDay.String())
+		}
+
+		retText := opt.ReturnDate
+		retDay, err := api_client.GetWeekdayFromDate(opt.ReturnDate)
+		if err == nil {
+			retText = opt.ReturnDate + " " + strings.ToLower(retDay.String())
 		}
 
 		resOpt = append(resOpt, strings.Join([]string{
 			price,
-			fmt.Sprintf("🛫 %v", opt.DepartDate),
-			fmt.Sprintf("🛬 %v", opt.ReturnDate),
+			fmt.Sprintf("🛫 %v", depText),
+			fmt.Sprintf("🛬 %v", retText),
 			// fmt.Sprintf("📏 %d км", opt.Distance),
-			fmt.Sprintf("кол-во пересадок: %d", opt.NumberOfChanges),
-			"источник: " + opt.Site,
+			fmt.Sprintf("🔄 %d", opt.NumberOfChanges),
+			"🔎 " + opt.Site,
 		}, "\n"))
 	}
 
