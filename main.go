@@ -74,6 +74,7 @@ func main() {
 		}
 		send(m.Sender, "Всего результатов: "+strconv.Itoa(optionsAmount)+", покажу до "+strconv.Itoa(maxResults)+" лучших:")
 
+		// TODO spinner
 		waitMessage, err := b.Send(m.Sender, waitingGif)
 		if err != nil {
 			log.Println("failed to send wait message:", err)
