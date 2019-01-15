@@ -16,6 +16,8 @@ const (
 
 	helpText = "Вас приветствует пожилой бот для поиска дешевых билетов. " +
 		"Чтобы начать поиск отправьте пожилое сообщение в виде \"Киев Таллин\" или \"Из Киева в Таллин\""
+
+	waitingGif = "https://media.giphy.com/media/tXL4FHPSnVJ0A/giphy.gif"
 )
 
 func main() {
@@ -58,59 +60,74 @@ func main() {
 		IATAResp := fmt.Sprintf("%s ➡️ %s", src.Name, dst.Name)
 		send(m.Sender, IATAResp)
 
-		options, err := api_client.GetBestPrices(src, dst)
+		results, err := api_client.GetBestPrices(src, dst)
 		if err != nil {
 			log.Println("failed to get GetBestPrices:", err)
 			send(m.Sender, "🔴 произошла ошибка при отправке запроса")
 			return
 		}
 
-		optionsAmount := len(options)
+		optionsAmount := len(results)
 		if optionsAmount == 0 {
 			send(m.Sender, "Ничего не нашел")
 			return
 		}
 		send(m.Sender, "Всего результатов: "+strconv.Itoa(optionsAmount)+", покажу до "+strconv.Itoa(maxResults)+" лучших:")
-		send(m.Sender, optionsMessage(options))
+
+		waitMessage, err := b.Send(m.Sender, waitingGif)
+		if err != nil {
+			log.Println("failed to send wait message:", err)
+		}
+
+		optionsMessageText := optionsMessage(results)
+		if waitMessage != nil {
+			err := b.Delete(waitMessage)
+			if err != nil {
+				log.Println("failed to delete wait message:", err)
+			}
+		}
+
+		send(m.Sender, optionsMessageText)
 	})
 
 	b.Start()
 }
 
-func optionsMessage(options []api_client.PriceOption) string {
+func optionsMessage(results []api_client.Result) string {
 	var resOpt []string
-	for i, opt := range options {
+	for i, res := range results {
 		if i == maxResults {
 			break
 		}
 
-		price := fmt.Sprintf("💶 %v ₽", opt.Price)
+		price := fmt.Sprintf("💶 %v ₽", res.Option.Price)
 		rate, err := api_client.GetCurrencyRateRubEur()
 		if err == nil && rate != 0 {
-			price = fmt.Sprintf("💶 %.2f €", rate*opt.Price)
+			price = fmt.Sprintf("💶 %.2f €", rate*res.Option.Price)
 		} else {
 			log.Println("failed to get currency rate:", err)
 		}
 
-		depText := opt.DepartDate
-		depDay, err := api_client.GetWeekdayFromDate(opt.DepartDate)
+		depText := res.Option.DepartDate
+		depDay, err := api_client.GetWeekdayFromDate(res.Option.DepartDate)
 		if err == nil {
-			depText = opt.DepartDate + " " + strings.ToLower(depDay.String())
+			depText = res.Option.DepartDate + " " + strings.ToLower(depDay.String())
 		}
 
-		retText := opt.ReturnDate
-		retDay, err := api_client.GetWeekdayFromDate(opt.ReturnDate)
+		retText := res.Option.ReturnDate
+		retDay, err := api_client.GetWeekdayFromDate(res.Option.ReturnDate)
 		if err == nil {
-			retText = opt.ReturnDate + " " + strings.ToLower(retDay.String())
+			retText = res.Option.ReturnDate + " " + strings.ToLower(retDay.String())
 		}
 
 		resOpt = append(resOpt, strings.Join([]string{
 			price,
 			fmt.Sprintf("🛫 %v", depText),
 			fmt.Sprintf("🛬 %v", retText),
-			// fmt.Sprintf("📏 %d км", opt.Distance),
-			fmt.Sprintf("🔄 %d", opt.NumberOfChanges),
-			"🔎 " + opt.Site,
+			// fmt.Sprintf("📏 %d km", opt.Distance),
+			fmt.Sprintf("🔄 %d", res.Option.NumberOfChanges),
+			"🔎 " + res.Option.Site,
+			"details: " + res.Link,
 		}, "\n"))
 	}
 

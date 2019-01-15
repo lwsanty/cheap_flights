@@ -6,9 +6,11 @@ import (
 	"github.com/vjeantet/jodaTime"
 	"html/template"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"net/url"
 	"sort"
+	"strings"
 	"time"
 )
 
@@ -19,6 +21,8 @@ const (
 	urlCurrencyRateRubEur = "http://free.currencyconverterapi.com/api/v5/convert?q=RUB_EUR&compact=y"
 
 	timeFormat = "YYYY-MM-dd"
+
+	defaultLink = "aviasales.ru"
 )
 
 type IATAPoint struct {
@@ -34,6 +38,11 @@ type IATAResponse struct {
 // TODO errors
 type BestPricesResponse struct {
 	Options []PriceOption `json:"best_prices"`
+}
+
+type Result struct {
+	Option PriceOption
+	Link   string
 }
 
 // TODO rubles to some sweet currency
@@ -75,9 +84,8 @@ func GetSrcDstIATAs(text string) (*IATAPoint, *IATAPoint, error) {
 	return src, dst, nil
 }
 
-func GetBestPrices(src, dst *IATAPoint) ([]PriceOption, error) {
-	// ?origin=BCN&destination=MOW&depart_date=2014-12-01&one_way=false
-
+// ?origin=BCN&destination=MOW&depart_date=2014-12-01&one_way=false
+func GetBestPrices(src, dst *IATAPoint) ([]Result, error) {
 	var bpUrl *url.URL
 	bpUrl, err := url.Parse(urlBestPrices)
 	if err != nil {
@@ -103,7 +111,20 @@ func GetBestPrices(src, dst *IATAPoint) ([]PriceOption, error) {
 
 	options := resp.Options
 	sort.Slice(options, func(i, j int) bool { return options[i].Price < options[j].Price })
-	return options, nil
+
+	var results []Result
+	for _, opt := range options {
+		link, err := GetOptionLink(src, dst, opt)
+		if err != nil {
+			log.Println("failed to get link:", err)
+			link = defaultLink
+		}
+		results = append(results, Result{
+			Option: opt,
+			Link:   link,
+		})
+	}
+	return results, nil
 }
 
 func GetCurrencyRateRubEur() (float32, error) {
@@ -137,4 +158,31 @@ func GetWeekdayFromDate(timeValue string) (time.Weekday, error) {
 	}
 
 	return t.Weekday(), nil
+}
+
+// GetOptionLink returns link to search results of given cities on given dates
+// date format in api 2020-01-09
+// returned link example www.aviasales.ru/search/IEV2301TLL2401123 where
+// IEV, TLL - src and dst IATAs
+// 2301, 2401 - departure and return dates in ddmm format
+// 123 - amounts of adult, child and baby tickets (1 adult ticket, 2 child tickets, 3 baby tickets)
+func GetOptionLink(src, dst *IATAPoint, option PriceOption) (string, error) {
+	dayMonth := func(date string) (string, error) {
+		dt := strings.Split(date, "-")
+		if len(dt) != 3 {
+			return "", fmt.Errorf("wrong date format: %s", date)
+		}
+		return dt[2] + dt[1], nil
+	}
+
+	dep, err := dayMonth(option.DepartDate)
+	if err != nil {
+		return "", err
+	}
+	ret, err := dayMonth(option.ReturnDate)
+	if err != nil {
+		return "", err
+	}
+
+	return "aviasales.ru/search/" + src.IATA + dep + dst.IATA + ret + "1", nil
 }
