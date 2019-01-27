@@ -3,12 +3,13 @@ package main
 import (
 	"flights/api_client"
 	"fmt"
-	tb "gopkg.in/tucnak/telebot.v2"
 	"log"
 	"os"
 	"strconv"
 	"strings"
 	"time"
+
+	tb "gopkg.in/tucnak/telebot.v2"
 )
 
 const (
@@ -49,6 +50,9 @@ func main() {
 	})
 
 	b.Handle(tb.OnText, func(m *tb.Message) {
+		// TODO google handles too much requests, tor?
+		//loc := localization.New(m.Text)
+
 		src, dst, err := api_client.GetSrcDstIATAs(m.Text)
 		if err != nil {
 			log.Println("failed to get src and dst:", err)
@@ -63,7 +67,7 @@ func main() {
 		results, err := api_client.GetBestPrices(src, dst)
 		if err != nil {
 			log.Println("failed to get GetBestPrices:", err)
-			send(m.Sender, "🔴 произошла ошибка при отправке запроса")
+			send(m.Sender, "🔴 ошибка при отправке запроса")
 			return
 		}
 
@@ -72,7 +76,7 @@ func main() {
 			send(m.Sender, "Ничего не нашел")
 			return
 		}
-		send(m.Sender, "Всего результатов: "+strconv.Itoa(optionsAmount)+", покажу до "+strconv.Itoa(maxResults)+" лучших:")
+		send(m.Sender, "Всего результатов: "+strconv.Itoa(optionsAmount)+", "+strconv.Itoa(maxResults)+" лучших:")
 
 		// TODO spinner
 		waitMessage, err := b.Send(m.Sender, waitingGif)
@@ -127,8 +131,8 @@ func optionsMessage(results []api_client.Result) string {
 			fmt.Sprintf("🛬 %v", retText),
 			// fmt.Sprintf("📏 %d km", opt.Distance),
 			fmt.Sprintf("🔄 %d", res.Option.NumberOfChanges),
-			"🔎 " + res.Option.Site,
-			"details: " + res.Link,
+			//"🔎 " + res.Option.Site,
+			"🔎 " + res.Link,
 		}, "\n"))
 	}
 

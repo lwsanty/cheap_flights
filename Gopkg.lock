@@ -2,6 +2,14 @@
 
 
 [[projects]]
+  branch = "master"
+  digest = "1:582d5bc387c134c6e360604542ac443bf099c87434750077090ab675a20df2da"
+  name = "github.com/abadojack/whatlanggo"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "01d4c01a5a7c58f22e17df47209425451fb14087"
+
+[[projects]]
   digest = "1:cf31692c14422fa27c83a05292eb5cbe0fb2775972e8f1f8446a71549bd8980b"
   name = "github.com/pkg/errors"
   packages = ["."]
@@ -29,6 +37,7 @@
   analyzer-name = "dep"
   analyzer-version = 1
   input-imports = [
+    "github.com/abadojack/whatlanggo",
     "github.com/vjeantet/jodaTime",
     "gopkg.in/tucnak/telebot.v2",
   ]

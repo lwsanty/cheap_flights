@@ -3,15 +3,18 @@ package api_client
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/vjeantet/jodaTime"
 	"html/template"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"net/url"
+	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
+
+	"github.com/vjeantet/jodaTime"
 )
 
 const (
@@ -19,6 +22,7 @@ const (
 	urlBestPrices = "http://min-prices.aviasales.ru/calendar_preload"
 
 	urlCurrencyRateRubEur = "http://free.currencyconverterapi.com/api/v5/convert?q=RUB_EUR&compact=y"
+	urlEuroCurrencyRates  = "https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml"
 
 	timeFormat = "YYYY-MM-dd"
 
@@ -65,6 +69,12 @@ type CurrencyRate struct {
 
 // TODO English support
 func GetSrcDstIATAs(text string) (*IATAPoint, *IATAPoint, error) {
+	//trText, err := localization.Translate(text, "auto", "ru")
+	//if err != nil {
+	//	fmt.Printf("GetSrcDstIATAs -> failed to translate to russian: %v", err)
+	//} else {
+	//	text = trText
+	//}
 	encodedText := template.URLQueryEscaper(text)
 
 	data, err := doReq(urlIATAPrefix + encodedText)
@@ -128,17 +138,23 @@ func GetBestPrices(src, dst *IATAPoint) ([]Result, error) {
 }
 
 func GetCurrencyRateRubEur() (float32, error) {
-	data, err := doReq(urlCurrencyRateRubEur)
+	data, err := doReq(urlEuroCurrencyRates)
 	if err != nil {
 		return 0, err
 	}
 
-	var resp CurrencyResponse
-	if err := json.Unmarshal(data, &resp); err != nil {
-		return 0, err
+	pattern := regexp.MustCompile(`'RUB' rate='([+-]?([0-9]*[.])?[0-9]+)'`)
+
+	rs := pattern.FindStringSubmatch(string(data))
+	if len(rs) < 2 {
+		return 0, fmt.Errorf("failed to get submatch")
 	}
 
-	return resp.CR.Value, nil
+	fRes, err := strconv.ParseFloat(rs[1], 32)
+	if fRes == 0 {
+		return 0, fmt.Errorf("currency rate is zero")
+	}
+	return 1 / float32(fRes), err
 }
 
 func doReq(url string) ([]byte, error) {
