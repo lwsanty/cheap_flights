@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/abadojack/whatlanggo"
+	"github.com/lwsanty/cheap_flights/wikidata"
 )
 
 const langDef = "en"
@@ -18,26 +19,46 @@ var whiteListOptions = whatlanggo.Options{
 	Whitelist: map[whatlanggo.Lang]bool{
 		whatlanggo.Eng: true,
 		whatlanggo.Rus: true,
-		whatlanggo.Spa: true,
-		whatlanggo.Deu: true,
 	},
 }
 
 type Localization struct {
-	lang string
+	lang        string
+	RegularMsgs RegMsgs
 }
 
-func New(s string) *Localization {
+type RegMsgs struct {
+	Help             string `yaml:"help"`
+	HelpInstructions string `yaml:"help-instructions"`
+	ParseError       string `yaml:"parse-error"`
+	AirportDataError string `yaml:"airport-data-error"`
+	RequestError     string `yaml:"request-error"`
+	NothingFound     string `yaml:"nothing-found"`
+	Results          string `yaml:"results"`
+}
+
+func New(r map[string]RegMsgs, s string) (*Localization, error) {
 	info := whatlanggo.DetectWithOptions(s, whiteListOptions)
 	lang := whatlanggo.LangToStringShort(info.Lang)
 	if lang == "" {
 		lang = langDef
 	}
-	return &Localization{
-		lang: lang,
+	messages, ok := r[lang]
+	if !ok {
+		return nil, fmt.Errorf("language %v is not supported", lang)
 	}
+
+	return &Localization{
+		lang:        lang,
+		RegularMsgs: messages,
+	}, nil
 }
 
+func (l *Localization) TranslateCity(city string) (string, error) {
+	return wikidata.TranslateCity(l.lang, city)
+}
+
+// Careful with this one, google translator has a cooldown
 func (l *Localization) Text(s string) string {
 	text, err := Translate(s, "auto", l.lang)
 	if err != nil {

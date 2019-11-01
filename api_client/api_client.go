@@ -39,7 +39,7 @@ type IATAResponse struct {
 	Dst IATAPoint `json:"destination"`
 }
 
-// TODO errors
+// TODO: errors
 type BestPricesResponse struct {
 	Options []PriceOption `json:"best_prices"`
 }
@@ -49,7 +49,7 @@ type Result struct {
 	Link   string
 }
 
-// TODO rubles to some sweet currency
+// TODO: rubles to some sweet currency
 type PriceOption struct {
 	Price           float32 `json:"value"` // rubles
 	ReturnDate      string  `json:"return_date"`
@@ -67,7 +67,7 @@ type CurrencyRate struct {
 	Value float32 `json:"val"`
 }
 
-// TODO English support
+// TODO: English support
 func GetSrcDstIATAs(text string) (*IATAPoint, *IATAPoint, error) {
 	//trText, err := localization.Translate(text, "auto", "ru")
 	//if err != nil {

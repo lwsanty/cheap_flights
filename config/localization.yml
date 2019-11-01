@@ -1,0 +1,16 @@
+en:
+  help: "Welcome to old zhmykh bot!"
+  help-instructions: "To start search, please send a message in the format \"Kiev, Tallinn\""
+  parse-error: "could not parse the text"
+  airport-data-error: "could not obtain airport data"
+  request-error: "send request error"
+  nothing-found: "Nothing's found"
+  results: "Total results: %v, top %v:"
+ru:
+  help: "Вас приветствует пожилой бот для поиска дешевых билетов!"
+  help-instructions: "Чтобы начать поиск отправьте пожилое сообщение в виде \"Киев, Таллин\""
+  parse-error: "не удалось распознать текст"
+  airport-data-error: "не удалось получить данные об аэропортах"
+  request-error: "ошибка при отправке запроса"
+  nothing-found: "Ничего не нашел"
+  results: "Всего результатов: %v, лучших %v:"

@@ -1,22 +1,26 @@
 package main
 
 import (
-	"flights/api_client"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"os"
 	"strconv"
 	"strings"
 	"time"
 
+	"gopkg.in/yaml.v2"
+
+	"github.com/lwsanty/cheap_flights/api_client"
+	"github.com/lwsanty/cheap_flights/localization"
 	tb "gopkg.in/tucnak/telebot.v2"
 )
 
 const (
 	maxResults = 5
 
-	helpText = "Вас приветствует пожилой бот для поиска дешевых билетов. " +
-		"Чтобы начать поиск отправьте пожилое сообщение в виде \"Киев Таллин\" или \"Из Киева в Таллин\""
+	defaultConfigPath = "config/localization.yml"
+	separator         = ", "
 
 	waitingGif = "https://media.giphy.com/media/tXL4FHPSnVJ0A/giphy.gif"
 )
@@ -31,6 +35,19 @@ func main() {
 		os.Exit(1)
 	}
 
+	data, err := ioutil.ReadFile(getEnv("CONFIG_PATH", defaultConfigPath))
+	if err != nil {
+		log.Println("failed to read languages file:", err)
+		os.Exit(1)
+	}
+
+	regulars := make(map[string]localization.RegMsgs)
+	if err := yaml.Unmarshal(data, regulars); err != nil {
+		log.Println("failed to get languages:", err)
+		os.Exit(1)
+	}
+	multiHelp := getMultiHelp(regulars)
+
 	send := func(user *tb.User, text string) {
 		if _, err := b.Send(user, text); err != nil {
 			log.Println("failed to send message:", err)
@@ -38,47 +55,58 @@ func main() {
 	}
 
 	b.Handle("/start", func(m *tb.Message) {
-		send(m.Sender, helpText)
+		send(m.Sender, multiHelp)
 	})
 
 	b.Handle("/help", func(m *tb.Message) {
-		send(m.Sender, helpText)
+		send(m.Sender, multiHelp)
 	})
 
 	b.Handle(tb.OnUserJoined, func(m *tb.Message) {
-		send(m.Sender, helpText)
+		send(m.Sender, multiHelp)
 	})
 
 	b.Handle(tb.OnText, func(m *tb.Message) {
-		// TODO google handles too much requests, tor?
-		//loc := localization.New(m.Text)
-
-		src, dst, err := api_client.GetSrcDstIATAs(m.Text)
+		loc, err := localization.New(regulars, m.Text)
 		if err != nil {
-			log.Println("failed to get src and dst:", err)
-			send(m.Sender, "🔴 не смог получить данные об аэропортах")
-			//send(m.Sender, "🔴 could not retrieve source and destination points")
+			send(m.Sender, "🔴 could not parse text/не удалось распознать текст")
+			log.Println("failed to prepareText:", err)
 			return
 		}
 
-		IATAResp := fmt.Sprintf("%s ➡️ %s", src.Name, dst.Name)
-		send(m.Sender, IATAResp)
+		text, err := prepareText(loc, m.Text)
+		if err != nil {
+			log.Println("failed to prepareText:", err)
+			send(m.Sender, fmt.Sprintf("🔴 \n%s \n\n%s", loc.RegularMsgs.ParseError, loc.RegularMsgs.HelpInstructions))
+			return
+		}
+
+		src, dst, err := api_client.GetSrcDstIATAs(text)
+		if err != nil {
+			log.Println("failed to get src and dst:", err)
+			send(m.Sender, fmt.Sprintf("🔴🔴 \n%s \n\n%s", loc.RegularMsgs.AirportDataError, loc.RegularMsgs.HelpInstructions))
+			return
+		}
+
+		//IATAResp := fmt.Sprintf("%s ➡️ %s", src.Name, dst.Name)
+		//send(m.Sender, IATAResp)
 
 		results, err := api_client.GetBestPrices(src, dst)
 		if err != nil {
 			log.Println("failed to get GetBestPrices:", err)
-			send(m.Sender, "🔴 ошибка при отправке запроса")
+			send(m.Sender, "🔴🔴 \n"+loc.RegularMsgs.RequestError)
 			return
 		}
 
 		optionsAmount := len(results)
 		if optionsAmount == 0 {
-			send(m.Sender, "Ничего не нашел")
+			// TODO: pic
+			send(m.Sender, loc.RegularMsgs.NothingFound)
 			return
 		}
-		send(m.Sender, "Всего результатов: "+strconv.Itoa(optionsAmount)+", "+strconv.Itoa(maxResults)+" лучших:")
+		send(m.Sender, fmt.Sprintf(loc.RegularMsgs.Results, strconv.Itoa(optionsAmount), strconv.Itoa(maxResults)))
 
-		// TODO spinner
+		// TODO: spinner
 		waitMessage, err := b.Send(m.Sender, waitingGif)
 		if err != nil {
 			log.Println("failed to send wait message:", err)
@@ -105,10 +133,10 @@ func optionsMessage(results []api_client.Result) string {
 			break
 		}
 
-		price := fmt.Sprintf("💶 %v ₽", res.Option.Price)
+		price := fmt.Sprintf(" ₽💶 %v", res.Option.Price)
 		rate, err := api_client.GetCurrencyRateRubEur()
 		if err == nil && rate != 0 {
-			price = fmt.Sprintf("💶 %.2f €", rate*res.Option.Price)
+			price = fmt.Sprintf("💶 € %.2f", rate*res.Option.Price)
 		} else {
 			log.Println("failed to get currency rate:", err)
 		}
@@ -137,4 +165,38 @@ func optionsMessage(results []api_client.Result) string {
 	}
 
 	return strings.Join(resOpt, "\n\n")
+}
+
+func prepareText(l *localization.Localization, text string) (string, error) {
+	cities := strings.Split(text, separator)
+	if len(cities) != 2 {
+		return "", fmt.Errorf("amount of cities does not equal to 2: %v", cities)
+	}
+
+	var result []string
+	for _, c := range cities {
+		r, err := l.TranslateCity(c)
+		if err != nil {
+			return "", err
+		}
+		result = append(result, r)
+	}
+
+	return strings.Join(result, " "), nil
+}
+
+func getEnv(key, fallback string) string {
+	value := os.Getenv(key)
+	if len(value) == 0 {
+		return fallback
+	}
+	return value
+}
+
+func getMultiHelp(r map[string]localization.RegMsgs) string {
+	var result []string
+	for lang, text := range r {
+		result = append(result, fmt.Sprintf("%s: %s %s", lang, text.Help, text.HelpInstructions))
+	}
+	return strings.Join(result, "\n\n")
 }
